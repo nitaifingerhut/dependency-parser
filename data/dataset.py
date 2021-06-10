@@ -1,98 +1,153 @@
+import numpy as np
+import torch
+
+from data.constants import SOURCE, TOKENS
+from data.embedding import DataEmbedding
+from data.sentence import Sentence
 from pathlib import Path
 from torch.utils.data import Dataset
-from typing import List, Tuple
+from typing import List, Optional, Tuple
+from utils.torch import to_device
 
 
-class DatasetSentence(object):
-
-    DS_LOC = 0
-    DS_WORD = 1
-    DS_POS = 3
-    DS_HEAD = 6
-
-    S_LOC = 0
-    S_WORD = 1
-    S_POS = 2
-    S_HEAD = 3
-
-    @classmethod
-    def from_file(cls, sentence: List[str], add_root: bool = True):
-        entries = [e.split('\t') for e in sentence]
-        locs = [int(e[cls.DS_LOC]) for e in entries]
-        words = [e[cls.DS_WORD] for e in entries]
-        POSs = [e[cls.DS_POS] for e in entries]
-        heads = [int(e[cls.DS_HEAD]) for e in entries]
-        return cls(locs, words, POSs, heads, add_root)
-
+class DependencyParsingDataset(Dataset):
     def __init__(
         self,
-        locs: List[int],
-        words: List[str],
-        POSs: List[str],
-        heads: List[int],
-        add_root: bool = True
+        data_embedding: DataEmbedding,
+        mode: Optional[str] = "train",
+        padding: Optional[bool] = False,
+        dropout: Optional[float] = 0.1,
     ):
-        self.base_len = len(locs)
-        if not all(len(i) == self.base_len for i in (words, POSs, heads)):
-            raise ValueError
+        """
 
-        self.locs = locs if not add_root else [0] + locs
-        self.words = words if not add_root else ["ROOT"] + words
-        self.POSs = POSs if not add_root else [""] + POSs
-        self.heads = heads if not add_root else [-1] + heads
-
-    def __len__(self):
-        return self.base_len
-
-    def __getitem__(self, idx) -> Tuple[int, str, str, int]:
-        if not 0 <= idx < self.base_len:
-            raise IndexError
-        return self.locs[idx], self.words[idx], self.POSs[idx], self.heads[idx]
-
-    def __str__(self):
-        return f"DatasetSentence: {self.base_len}"
-
-    def __repr__(self):
-        title = "| Index |      Word      |   POS   | Head |"
-        hline = "==========================================="
-        zip_data = zip(self.locs, self.words, self.POSs, self.heads)
-        entries = [title, hline] + [f"| {l:<5} | {w:<14} | {p:<7} | {h:<4} |" for l, w, p, h in zip_data] + [hline]
-        entries_str = "\n".join(entries)
-        return entries_str
-
-
-SOURCE = {
-    "train": Path.cwd().joinpath("assets/train.labeled"),
-    "test": Path.cwd().joinpath("assets/test.labeled"),
-    "comp": Path.cwd().joinpath("assets/comp.unlabeled")
-}
-
-
-class POSDepsDataset(Dataset):
-
-    def __init__(self, mode: str = "train"):
+        Parameters
+        ----------
+        data_embedding: An object with words and poses embeddings.
+        mode: train/test/comp.
+        padding: A boolean indicates whether to pad sentences to the same length.
+        dropout: amount (p) of words to drop (in practice; replace with `unknown` token).
+        """
 
         super().__init__()
 
-        if mode not in SOURCE:
+        if mode not in SOURCE.keys():
             raise ValueError(f"mode = {mode} not in {list(SOURCE.keys())}")
+
+        if not 0 <= dropout <= 1:
+            raise ValueError(f"dropout = {dropout} not in [0, 1]")
 
         self.mode = mode
         self.file = SOURCE[mode]
+        self.dropout = dropout
 
-        with open(self.file, "r") as f:
-            sentences = f.read().split("\n\n")
-            sentences = [s.split("\n") for s in sentences]
-            sentences = sentences[:-1]  # Remove the empty line at the end of files.
-            self.data = [DatasetSentence.from_file(s) for s in sentences]
-            self.data = [i for i in self.data if i is not None]
+        self.sentences, self.max_sentence_length = self._init_sentences(self.file)
+        self.data = self._init_dataset(data_embedding, padding)
+
+    def _init_sentences(self, path: Path) -> Tuple[List[Sentence], int]:
+        """
+        Initiates the dataset's sentences from file.
+
+        Parameters
+        ----------
+        path: A path to file.
+
+        Returns
+        -------
+        A tuple of (sentences, max sentence length).
+        """
+
+        with open(path, "r") as f:
+            raw_sentences = f.read().split("\n\n")
+
+        raw_sentences = [s.split("\n") for s in raw_sentences]
+        raw_sentences = raw_sentences[:-1]  # Remove the empty line at the end of files.
+
+        sentences = [Sentence(s) for s in raw_sentences]
+        sentences = [i for i in sentences if i is not None]
+        max_sentence_length = max([len(s) for s in sentences])
+
+        return sentences, max_sentence_length
+
+    def _init_dataset(
+        self, data_embedding: DataEmbedding, padding: Optional[bool] = False
+    ) -> List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]]:
+        """
+        Initiated the dataset from the sentences.
+
+        Parameters
+        ----------
+        data_embedding: An object with words and poses embeddings.
+        padding: A boolean indicates whether to pad sentences to the same length.
+
+        Returns
+        -------
+        A list of samples' tuples.
+        """
+        data = []
+        for sentence in self.sentences:
+            data.append(self._init_dataset_sentence(data_embedding, sentence, padding))
+        return data
+
+    def _init_dataset_sentence(
+        self, data_embedding: DataEmbedding, sentence: Sentence, padding: Optional[bool] = False
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]:
+        """
+        Initiates a single sample from a sentence.
+
+        Parameters
+        ----------
+        data_embedding: An object with words and poses embeddings.
+        padding: A boolean indicates whether to pad sentences to the same length.
+
+        Returns
+        -------
+        A tuple of (words embedding, poses embedding, heads indices, sentence length).
+        """
+        words_indices = []
+        poses_indices = []
+        heads_indices = []
+
+        for i, w, p, h in sentence:
+            if self.dropout > 0:
+                dropout_probability = self.dropout / (data_embedding.words_dict[w] + self.dropout)
+                if dropout_probability > np.random.rand():
+                    w = TOKENS["unknown"]
+
+            w_embedding = data_embedding.word_to_ind.get(w, data_embedding.word_to_ind[TOKENS["unknown"]])
+            words_indices.append(w_embedding)
+
+            p_embedding = data_embedding.pos_to_ind.get(p, data_embedding.pos_to_ind[TOKENS["unknown"]])
+            poses_indices.append(p_embedding)
+
+            heads_indices.append(h)
+
+        # if padding:
+        #     words_indices += [
+        #         self.data_embedding.word_to_ind.get(TOKENS["pad"])
+        #         for _ in range(self.max_sentence_length - len(sentence))
+        #     ]
+        #     poses_indices += [
+        #         self.data_embedding.pos_to_ind.get(TOKENS["pad"])
+        #         for _ in range(self.max_sentence_length - len(sentence))
+        #     ]
+
+        return (
+            to_device(torch.tensor(words_indices, requires_grad=False), dtype=torch.int64),
+            to_device(torch.tensor(poses_indices, requires_grad=False), dtype=torch.int64),
+            to_device(torch.tensor(heads_indices, requires_grad=False), dtype=torch.int64),
+        )
+        # return (
+        #     to_device(torch.tensor(words_indices, requires_grad=False), dtype=torch.int64),
+        #     to_device(torch.tensor(poses_indices, requires_grad=False), dtype=torch.int64),
+        #     to_device(torch.tensor(heads_indices, requires_grad=False), dtype=torch.int64),
+        #     len(words_indices),
+        # )
 
     def __len__(self):
         return len(self.data)
 
-    def __getitem__(self, idx) -> DatasetSentence:
-        # TODO: need to assign values to tensors + words to embedding vectors
+    def __getitem__(self, idx) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]:
         return self.data[idx]
 
     def __str__(self):
-        return f"POSDepsDataset :: mode = {self.mode} | num sample = {len(self.data)}"
+        return f"{self.__class__.__name__} :: mode = {self.mode} :: num sample = {len(self.data)}"

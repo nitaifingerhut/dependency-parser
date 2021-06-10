@@ -1,5 +1,7 @@
 *.DS_Store
 *__pycache__
 *.idea
+*.vector_cache
 *.txt
+data/.vector_cache/*
 scripts/*.txt

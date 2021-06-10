@@ -7,12 +7,11 @@ from datetime import datetime
 
 
 class ParseKwargs(argparse.Action):
-
     def _get_value_from_str(self, value: str):
         try:
             value = int(value)
         except ValueError:
-            value = tuple(value.split(","))
+            value = tuple([float(x) for x in value.split(",")])
         return value
 
     def __call__(self, parser, namespace, values, option_string=None):
@@ -46,11 +45,13 @@ class Parser(object):
             "--name", type=str, default="dev", help="experiment name",
         )
         parser.add_argument("--num-epochs", type=int, default=200)
-        parser.add_argument("--batch-size", type=int, default=8)
+        parser.add_argument("--batch-size", type=int, default=64)
         parser.add_argument("--num-workers", type=int, default=0)
 
         parser.add_argument(
-            "--optimizer", type=str, default="Adam",
+            "--optimizer",
+            type=str,
+            default="Adam",
             choices=[k for k in torch.optim.__dict__.keys() if not k.startswith("__")],
         )
         parser.add_argument("--lr", type=float, default=1e-3)
