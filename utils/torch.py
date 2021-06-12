@@ -8,3 +8,7 @@ def to_device(x: Any, index: int = 0, dtype=torch.float64):
         x = x.cuda(index)
     x = x.type(dtype)
     return x
+
+
+def to_numpy(x: torch.Tensor):
+    return x.detach().cpu().numpy()
