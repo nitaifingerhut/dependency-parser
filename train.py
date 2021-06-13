@@ -1,8 +1,6 @@
 import argparse
 import json
 import matplotlib.pyplot as plt
-import math
-import numpy as np
 import torch
 
 from data.constants import SOURCE
@@ -11,7 +9,7 @@ from data.embedding import DataEmbedding
 from models.dependency_parser_v1 import DependencyParserV1
 from models.nllloss import DependencyParserNLLLoss
 from pathlib import Path
-from predict import predict
+from predict import predict_with_gt
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from utils.parser import Parser
@@ -22,21 +20,27 @@ OPTIMIZERS = torch.optim.__dict__
 
 
 def plot_stats(opts: argparse.Namespace, path: Path):
-    _, axs = plt.subplots(1, 2, figsize=(10, 5))
+    _, axs = plt.subplots(2, 2, figsize=(10, 10))
 
-    start = math.ceil(len(opts.batch_losses) // opts.num_epochs)
-    axs[0].plot(np.arange(len(opts.batch_losses), step=1), opts.batch_losses, label="batch loss")
-    axs[0].plot(np.arange(start, len(opts.batch_losses), step=opts.n_batches - 1), opts.epoch_losses, label="epoch loss")
-    axs[0].plot(np.arange(start, len(opts.batch_losses), step=opts.n_batches - 1), opts.test_losses, label="test loss")
-    axs[0].legend(loc="upper right")
-    axs[0].set_xlabel("batch")
-    axs[0].set_ylabel("loss")
-    axs[0].set_title("train and test losses")
+    axs[0, 0].plot(opts.batch_losses)
+    axs[0, 0].set_xlabel("batch")
+    axs[0, 0].set_ylabel("loss")
+    axs[0, 0].set_title("train loss vs. batch")
 
-    axs[1].plot(opts.test_accuracies, label="test accuracy")
-    axs[1].set_xlabel("epoch")
-    axs[1].set_ylabel("accuracy[%]")
-    axs[1].set_title("test accuracy vs. epoch")
+    axs[0, 1].plot(opts.epoch_losses)
+    axs[0, 1].set_xlabel("epoch")
+    axs[0, 1].set_ylabel("loss")
+    axs[0, 1].set_title("train loss vs. epoch")
+
+    axs[1, 0].plot(opts.test_losses)
+    axs[1, 0].set_xlabel("epoch")
+    axs[1, 0].set_ylabel("loss")
+    axs[1, 0].set_title("test loss vs. epoch")
+
+    axs[1, 1].plot(opts.test_accuracies)
+    axs[1, 1].set_xlabel("epoch")
+    axs[1, 1].set_ylabel("accuracy[%]")
+    axs[1, 1].set_title("test accuracy[%] vs. epoch")
 
     plt.savefig(path, bbox_inches="tight")
     plt.close()
@@ -49,7 +53,7 @@ if __name__ == "__main__":
     exp_dir = Path("checkpoints").joinpath(opts.name)
     exp_dir.mkdir(parents=True, exist_ok=True)
 
-    data_embedding = DataEmbedding(corpora=[SOURCE["train"], SOURCE["test"]])  # SOURCE["comp"]
+    data_embedding = DataEmbedding(corpora=[SOURCE["train"], SOURCE["test"], SOURCE["comp"]])
     # data_embedding.save(Path("assets/data_embedding.pth"))
 
     train_ds = DependencyParsingDataset(data_embedding, mode="train")
@@ -99,7 +103,7 @@ if __name__ == "__main__":
 
         opts.epoch_losses.append(epoch_loss / opts.n_batches)
 
-        test_loss, test_accuracy = predict(test_dl, model, loss_fn)
+        test_loss, test_accuracy = predict_with_gt(test_dl, model, loss_fn)
         opts.test_losses.append(test_loss)
         opts.test_accuracies.append(test_accuracy)
         torch.save(model, exp_dir.joinpath(str(epoch).zfill(3) + ".pth"))

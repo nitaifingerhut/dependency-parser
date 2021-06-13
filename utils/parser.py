@@ -3,11 +3,13 @@ import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 
-from datetime import datetime
+from pathlib import Path
 
 
 class ParseKwargs(argparse.Action):
-    def _get_value_from_str(self, value: str):
+
+    @staticmethod
+    def _get_value_from_str(value: str):
         try:
             value = int(value)
         except ValueError:
@@ -38,9 +40,6 @@ class Parser(object):
         parser = argparse.ArgumentParser()
 
         parser.add_argument("--seed", type=int, default=None)
-        # parser.add_argument(
-        #     "--name", type=str, default=datetime.now().strftime("%m-%d_%H-%M-%S"), help="name",
-        # )
         parser.add_argument(
             "--name", type=str, default="dev", help="experiment name",
         )
@@ -56,6 +55,26 @@ class Parser(object):
         )
         parser.add_argument("--lr", type=float, default=1e-3)
         parser.add_argument("--optimizer-params", nargs="*", action=ParseKwargs, default=dict())
+
+        opt = parser.parse_args()
+        set_seed(opt.seed)
+        return opt
+
+    @staticmethod
+    def predict():
+        """
+        Parse command-line arguments
+        :return: argparser object with user opts.
+        """
+        parser = argparse.ArgumentParser()
+
+        parser.add_argument("--seed", type=int, default=None)
+        parser.add_argument(
+            "--name", type=str, default="dev", help="experiment name",
+        )
+
+        parser.add_argument("--checkpoint", type=Path, required=True)
+        parser.add_argument("--test-type", type=str, default="test", choices=("test", "comp"))
 
         opt = parser.parse_args()
         set_seed(opt.seed)
