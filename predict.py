@@ -3,10 +3,10 @@ import torch
 import torch.nn as nn
 
 from assets.chu_liu_edmonds import decode_mst
-from data.constants import SOURCE
+from data.constants import INDICES, SOURCE
 from data.dataset import DependencyParsingDataset
 from data.embedding import DataEmbedding
-from models.nllloss import DependencyParserNLLLoss
+from data.sentence import Sentence
 from pathlib import Path
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -24,8 +24,8 @@ def predict_dependencies_by_arc_scores(scores: np.ndarray) -> np.ndarray:
 
 def predict_with_gt(dataloader: DataLoader, model: nn.Module, loss_fn: nn.Module) -> Tuple[float, float]:
     with torch.no_grad():
-        loss = .0
-        accuracy = .0
+        loss = 0.0
+        accuracy = 0.0
         n_preds = 0
         for i, sentence in tqdm(enumerate(dataloader)):
 
@@ -56,15 +56,38 @@ if __name__ == "__main__":
     exp_dir.mkdir(parents=True, exist_ok=True)
 
     data_embedding = DataEmbedding(corpora=[SOURCE["train"], SOURCE["test"], SOURCE["comp"]])
-    # data_embedding.save(Path("assets/data_embedding.pth"))
-
-    test_ds = DependencyParsingDataset(data_embedding, mode=opts.test_type, dropout=0.0)
-    test_dl = DataLoader(dataset=test_ds, batch_size=1, num_workers=opts.num_workers, drop_last=False, shuffle=False)
 
     model = torch.load(opts.checkpoint)
     model = to_device(model)
+    model.eval()
 
-    loss_fn = DependencyParserNLLLoss(dim=1, ignore_index=-1)
-    loss_fn = to_device(loss_fn, dtype=torch.float64)
+    sentences, _ = DependencyParsingDataset.init_sentences(SOURCE["comp"])
+    for i, sentence in tqdm(enumerate(sentences)):
+        (words_embedding_indices, poses_embedding_indices, _,) = DependencyParsingDataset.init_dataset_sentence(
+            data_embedding=data_embedding, sentence=sentence, dropout=0.0
+        )
 
-    pass  # TODO: complete prediction and save to new file
+        scores = model(words_embedding_indices.unsqueeze(0), poses_embedding_indices.unsqueeze(0))
+        np_scores = to_numpy(scores.squeeze(0))
+        pred_indices = predict_dependencies_by_arc_scores(np_scores)
+
+        sentence.data = sentence.data[1:]
+        sentence.update(pred_indices, "HEAD")
+
+    with open(SOURCE["comp"], "r") as f:
+        raw_sentences = f.read().split("\n\n")
+    raw_sentences = [s.split("\n") for s in raw_sentences]
+
+    updated_raw_sentences = []
+    for raw_sentence, sentence in zip(raw_sentences, sentences):
+        raw_sentence = [s.split("\t") for s in raw_sentence]
+        updated_raw_sentence = []
+        for entry, pred in zip(raw_sentence, sentence):
+            entry[INDICES["head"]] = str(pred[Sentence.HEAD])
+            updated_raw_sentence.append("\t".join(entry))
+        updated_raw_sentences.append("\n".join(updated_raw_sentence))
+    updated_raw_sentences += [""]
+
+    pred_path = exp_dir.joinpath("comp.labeled")
+    with open(pred_path, "w") as f:
+        f.writelines("\n\n".join(updated_raw_sentences))

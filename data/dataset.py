@@ -25,7 +25,7 @@ class DependencyParsingDataset(Dataset):
         data_embedding: An object with words and poses embeddings.
         mode: train/test/comp.
         padding: A boolean indicates whether to pad sentences to the same length.
-        dropout: amount (p) of words to drop (in practice; replace with `unknown` token).
+        dropout: Amount (p) of words to drop (in practice; replace with `unknown` token).
         """
 
         super().__init__()
@@ -38,12 +38,12 @@ class DependencyParsingDataset(Dataset):
 
         self.mode = mode
         self.file = SOURCE[mode]
-        self.dropout = dropout
 
-        self.sentences, self.max_sentence_length = self._init_sentences(self.file)
-        self.data = self._init_dataset(data_embedding, padding)
+        self.sentences, self.max_sentence_length = self.init_sentences(path=self.file)
+        self.data = self._init_dataset(data_embedding=data_embedding, padding=padding, dropout=dropout)
 
-    def _init_sentences(self, path: Path) -> Tuple[List[Sentence], int]:
+    @staticmethod
+    def init_sentences(path: Path) -> Tuple[List[Sentence], int]:
         """
         Initiates the dataset's sentences from file.
 
@@ -69,7 +69,7 @@ class DependencyParsingDataset(Dataset):
         return sentences, max_sentence_length
 
     def _init_dataset(
-        self, data_embedding: DataEmbedding, padding: Optional[bool] = False
+        self, data_embedding: DataEmbedding, padding: Optional[bool] = False, dropout: float = 0.0
     ) -> List[Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]]:
         """
         Initiated the dataset from the sentences.
@@ -78,6 +78,7 @@ class DependencyParsingDataset(Dataset):
         ----------
         data_embedding: An object with words and poses embeddings.
         padding: A boolean indicates whether to pad sentences to the same length.
+        dropout: Amount (p) of words to drop (in practice; replace with `unknown` token).
 
         Returns
         -------
@@ -85,11 +86,12 @@ class DependencyParsingDataset(Dataset):
         """
         data = []
         for sentence in self.sentences:
-            data.append(self._init_dataset_sentence(data_embedding, sentence, padding))
+            data.append(self.init_dataset_sentence(data_embedding, sentence, padding=padding, dropout=dropout))
         return data
 
-    def _init_dataset_sentence(
-        self, data_embedding: DataEmbedding, sentence: Sentence, padding: Optional[bool] = False
+    @staticmethod
+    def init_dataset_sentence(
+        data_embedding: DataEmbedding, sentence: Sentence, padding: Optional[bool] = False, dropout: float = 0.0
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, int]:
         """
         Initiates a single sample from a sentence.
@@ -98,6 +100,7 @@ class DependencyParsingDataset(Dataset):
         ----------
         data_embedding: An object with words and poses embeddings.
         padding: A boolean indicates whether to pad sentences to the same length.
+        dropout: Amount (p) of words to drop (in practice; replace with `unknown` token).
 
         Returns
         -------
@@ -108,8 +111,8 @@ class DependencyParsingDataset(Dataset):
         heads_indices = []
 
         for i, w, p, h in sentence:
-            if self.dropout > 0:
-                dropout_probability = self.dropout / (data_embedding.words_dict[w] + self.dropout)
+            if dropout > 0:
+                dropout_probability = dropout / (data_embedding.words_dict[w] + dropout)
                 if dropout_probability > np.random.rand():
                     w = TOKENS["unknown"]
 
@@ -121,27 +124,11 @@ class DependencyParsingDataset(Dataset):
 
             heads_indices.append(h)
 
-        # if padding:
-        #     words_indices += [
-        #         self.data_embedding.word_to_ind.get(TOKENS["pad"])
-        #         for _ in range(self.max_sentence_length - len(sentence))
-        #     ]
-        #     poses_indices += [
-        #         self.data_embedding.pos_to_ind.get(TOKENS["pad"])
-        #         for _ in range(self.max_sentence_length - len(sentence))
-        #     ]
-
         return (
             to_device(torch.tensor(words_indices, requires_grad=False), dtype=torch.int64),
             to_device(torch.tensor(poses_indices, requires_grad=False), dtype=torch.int64),
             to_device(torch.tensor(heads_indices, requires_grad=False), dtype=torch.int64),
         )
-        # return (
-        #     to_device(torch.tensor(words_indices, requires_grad=False), dtype=torch.int64),
-        #     to_device(torch.tensor(poses_indices, requires_grad=False), dtype=torch.int64),
-        #     to_device(torch.tensor(heads_indices, requires_grad=False), dtype=torch.int64),
-        #     len(words_indices),
-        # )
 
     def __len__(self):
         return len(self.data)

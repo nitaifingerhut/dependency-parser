@@ -6,7 +6,7 @@ import torch
 from data.constants import SOURCE
 from data.dataset import DependencyParsingDataset
 from data.embedding import DataEmbedding
-from models.dependency_parser_v1 import DependencyParserV1
+from models.dependency_parser import MODELS
 from models.nllloss import DependencyParserNLLLoss
 from pathlib import Path
 from predict import predict_with_gt
@@ -54,15 +54,16 @@ if __name__ == "__main__":
     exp_dir.mkdir(parents=True, exist_ok=True)
 
     data_embedding = DataEmbedding(corpora=[SOURCE["train"], SOURCE["test"], SOURCE["comp"]])
-    # data_embedding.save(Path("assets/data_embedding.pth"))
 
     train_ds = DependencyParsingDataset(data_embedding, mode="train")
     train_dl = DataLoader(dataset=train_ds, batch_size=1, num_workers=opts.num_workers, drop_last=False, shuffle=True)
     test_ds = DependencyParsingDataset(data_embedding, mode="test", dropout=0.0)
     test_dl = DataLoader(dataset=test_ds, batch_size=1, num_workers=opts.num_workers, drop_last=False, shuffle=False)
 
-    model = DependencyParserV1(
-        words_vocab_size=data_embedding.words_vocab_size(), poses_vocab_size=data_embedding.poses_vocab_size()
+    model = MODELS[opts.model].from_params(
+        words_vocab_size=data_embedding.words_vocab_size(),
+        poses_vocab_size=data_embedding.poses_vocab_size(),
+        model_params=opts.model_params,
     )
     model = to_device(model, dtype=torch.float64)
 
@@ -76,12 +77,14 @@ if __name__ == "__main__":
     opts.epoch_losses = []
     opts.test_losses = []
     opts.test_accuracies = []
+    opts.test_min_loss = {}
+    opts.test_max_accuracy = {}
 
     for epoch in range(opts.num_epochs):
 
         optimizer.zero_grad()
-        batch_loss = .0
-        epoch_loss = .0
+        batch_loss = 0.0
+        epoch_loss = 0.0
         for i, sentence in tqdm(enumerate(train_dl)):
 
             words_embedding_indices, poses_embedding_indices, heads_indices = sentence
@@ -99,13 +102,22 @@ if __name__ == "__main__":
                 epoch_loss += batch_loss.item()
 
                 optimizer.zero_grad()
-                batch_loss = .0
+                batch_loss = 0.0
 
         opts.epoch_losses.append(epoch_loss / opts.n_batches)
 
         test_loss, test_accuracy = predict_with_gt(test_dl, model, loss_fn)
         opts.test_losses.append(test_loss)
         opts.test_accuracies.append(test_accuracy)
+
+        if opts.test_min_loss == {} or test_loss < opts.test_min_loss["value"]:
+            opts.test_min_loss["value"] = test_loss
+            opts.test_min_loss["epoch"] = epoch
+
+        if opts.test_max_accuracy == {} or test_accuracy > opts.test_max_accuracy["value"]:
+            opts.test_max_accuracy["value"] = test_accuracy
+            opts.test_max_accuracy["epoch"] = epoch
+
         torch.save(model, exp_dir.joinpath(str(epoch).zfill(3) + ".pth"))
 
     plot_stats(opts, exp_dir.joinpath("statistics.pdf"))

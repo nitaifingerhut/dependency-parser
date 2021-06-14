@@ -1,26 +1,37 @@
+import abc
 import argparse
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 
+from models.dependency_parser import MODELS
 from pathlib import Path
 
 
-class ParseKwargs(argparse.Action):
-
-    @staticmethod
-    def _get_value_from_str(value: str):
-        try:
-            value = int(value)
-        except ValueError:
-            value = tuple([float(x) for x in value.split(",")])
-        return value
+class ParseKWArgs(argparse.Action):
+    @abc.abstractmethod
+    def parse_value(self, value: str):
+        raise NotImplementedError
 
     def __call__(self, parser, namespace, values, option_string=None):
         setattr(namespace, self.dest, dict())
         for value in values:
             key, value = value.split("=")
-            getattr(namespace, self.dest)[key] = self._get_value_from_str(value)
+            getattr(namespace, self.dest)[key] = self.parse_value(value)
+
+
+class ParseOptimParams(ParseKWArgs):
+    def parse_value(self, value: str):
+        try:
+            value = float(value)
+        except ValueError:
+            value = tuple([float(x) for x in value.split(",")])
+        return value
+
+
+class ParseModelParams(ParseKWArgs):
+    def parse_value(self, value: str):
+        return value
 
 
 def set_seed(seed: int):
@@ -43,6 +54,10 @@ class Parser(object):
         parser.add_argument(
             "--name", type=str, default="dev", help="experiment name",
         )
+
+        parser.add_argument("--model", type=str, default="DependencyParserV1", choices=list(MODELS.keys()))
+        parser.add_argument("--model-params", nargs="*", action=ParseModelParams, default=dict())
+
         parser.add_argument("--num-epochs", type=int, default=200)
         parser.add_argument("--batch-size", type=int, default=64)
         parser.add_argument("--num-workers", type=int, default=0)
@@ -54,7 +69,7 @@ class Parser(object):
             choices=[k for k in torch.optim.__dict__.keys() if not k.startswith("__")],
         )
         parser.add_argument("--lr", type=float, default=1e-3)
-        parser.add_argument("--optimizer-params", nargs="*", action=ParseKwargs, default=dict())
+        parser.add_argument("--optimizer-params", nargs="*", action=ParseOptimParams, default=dict())
 
         opt = parser.parse_args()
         set_seed(opt.seed)
@@ -74,7 +89,6 @@ class Parser(object):
         )
 
         parser.add_argument("--checkpoint", type=Path, required=True)
-        parser.add_argument("--test-type", type=str, default="test", choices=("test", "comp"))
 
         opt = parser.parse_args()
         set_seed(opt.seed)

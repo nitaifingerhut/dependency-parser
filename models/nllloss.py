@@ -6,7 +6,6 @@ from utils.torch import to_device
 
 
 class DependencyParserNLLLoss(nn.Module):
-
     def __init__(self, dim: Optional[int] = 1, ignore_index: Optional[int] = -1):
         super(DependencyParserNLLLoss, self).__init__()
 
