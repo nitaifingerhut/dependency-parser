@@ -8,7 +8,7 @@ echo "(nlp_hw2) training starts"
 cd dependency-parser
 
 # Run the experiments
-python train.py --num-epochs 35 --batch-size 32  --optimizer Adam --lr 0.0001 --optimizer-params betas=0.9,0.99 --name 19-6_b_032_lr_0.0001_base_new --random-word-embedding 1
+python train.py --num-epochs 35 --batch-size 32  --optimizer Adam --lr 0.0001 --optimizer-params betas=0.9,0.99 --name 19-6_b_032_lr_0.0001_base_new --random-word-embedding 100
 git add -A
 git commit -m "auto..."
 git push
