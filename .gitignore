@@ -1,6 +1,7 @@
 *.DS_Store
 *__pycache__
 *.idea
+*.ipynb_checkpoints
 *.pth
 *.vector_cache
 *.txt

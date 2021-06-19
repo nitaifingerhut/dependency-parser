@@ -18,29 +18,27 @@ class DataEmbedding(object):
     def __init__(
         self,
         corpora: List[Path],
-        words_embeddings: Optional[Tuple[defaultdict, List[str], torch.Tensor]] = None,
+        random_words_embeddings: Optional[int] = 0,
         glove_vectors: Optional[str] = "glove.6B.300d",
     ):
         """
-
         Parameters
         ----------
         corpora: A list of paths to possible data files.
-        words_embeddings [Optional]: Define specific words embedding.
-        glove_vectors [Optional]: A string indicate GloVe to use from torchtext.vocab.
+        words_embeddings [Optional]: An integer indicating the embedding dimension of random word vectors.
+                                     0 means use GloVe trained vectors.
+        glove_vectors [Optional]: A string indicate GloVe trained vectors to use from torchtext.vocab.
         """
         super().__init__()
         self.words_dict, self.poses_dict = self._init_vocabs(corpora)
-        if words_embeddings:
+        if random_words_embeddings:
             self.word_to_ind = {k: v for v, k in enumerate(self.words_dict.keys())}
             self.ind_to_word = list(self.words_dict.keys())
-            embeds = torch.nn.Embedding(len(self.words_dict), 300)
+            embeds = torch.nn.Embedding(len(self.words_dict), random_words_embeddings)
             lookup_tensor = torch.tensor(list(range(len(self.words_dict))), dtype=torch.long)
             self.words_vectors = embeds(lookup_tensor)
         else:
-            self.word_to_ind, self.ind_to_word, self.words_vectors = (
-            words_embeddings if words_embeddings else self._init_words_embedding(glove_vectors)
-            )
+            self.word_to_ind, self.ind_to_word, self.words_vectors = self._init_words_embedding(glove_vectors)
         self.pos_to_ind, self.ind_to_pos = self._init_pos_embedding()
 
     def __str__(self):

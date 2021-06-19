@@ -55,6 +55,9 @@ class Parser(object):
             "--name", type=str, default="dev", help="experiment name",
         )
 
+        parser.add_argument("--random-word-embedding", type=int, default=0)
+        parser.add_argument("--glove-word-embedding", type=str, default="glove.6B.300d")
+
         parser.add_argument("--model", type=str, default="DependencyParserV1", choices=list(MODELS.keys()))
         parser.add_argument("--model-params", nargs="*", action=ParseModelParams, default=dict())
 
