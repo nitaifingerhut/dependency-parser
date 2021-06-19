@@ -82,7 +82,7 @@ if __name__ == "__main__":
     opts.test_min_loss = {}
     opts.test_max_accuracy = {}
 
-    for epoch in range(opts.num_epochs):
+    for epoch in tqdm(range(opts.num_epochs)):
 
         optimizer.zero_grad()
         batch_loss = 0.0
