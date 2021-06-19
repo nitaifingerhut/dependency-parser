@@ -31,9 +31,16 @@ class DataEmbedding(object):
         """
         super().__init__()
         self.words_dict, self.poses_dict = self._init_vocabs(corpora)
-        self.word_to_ind, self.ind_to_word, self.words_vectors = (
+        if words_embeddings:
+            self.word_to_ind = {k: v for v, k in enumerate(self.words_dict.keys())}
+            self.ind_to_word = list(self.words_dict.keys())
+            embeds = torch.nn.Embedding(len(self.words_dict), 300)
+            lookup_tensor = torch.tensor(list(range(len(self.words_dict))), dtype=torch.long)
+            self.words_vectors = embeds(lookup_tensor)
+        else:
+            self.word_to_ind, self.ind_to_word, self.words_vectors = (
             words_embeddings if words_embeddings else self._init_words_embedding(glove_vectors)
-        )
+            )
         self.pos_to_ind, self.ind_to_pos = self._init_pos_embedding()
 
     def __str__(self):

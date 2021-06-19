@@ -53,7 +53,7 @@ if __name__ == "__main__":
     exp_dir = Path("checkpoints").joinpath(opts.name)
     exp_dir.mkdir(parents=True, exist_ok=True)
 
-    data_embedding = DataEmbedding(corpora=[SOURCE["train"], SOURCE["test"], SOURCE["comp"]])
+    data_embedding = DataEmbedding(corpora=[SOURCE["train"], SOURCE["test"], SOURCE["comp"]], words_embeddings=True)
 
     train_ds = DependencyParsingDataset(data_embedding, mode="train")
     train_dl = DataLoader(dataset=train_ds, batch_size=1, num_workers=opts.num_workers, drop_last=False, shuffle=True)
