@@ -12,7 +12,7 @@ class DependencyParserV1(nn.Module):
         poses_embedding_dim = int(model_params.get("poses_embedding_dim", 32))
         lstm_num_layers = int(model_params.get("lstm_num_layers", 2))
         lstm_hidden_dim = int(model_params.get("lstm_hidden_dim", 128))
-        lstm_dropout = float(model_params.get("lstm_dropout", 0.0))
+        lstm_dropout = float(model_params.get("lstm_dropout", 0.1))
         linear_output_dim = int(model_params.get("linear_output_dim", 128))
         activation_type = model_params.get("activation_type", "tanh")
 
