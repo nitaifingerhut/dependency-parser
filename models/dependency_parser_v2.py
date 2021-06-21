@@ -9,7 +9,7 @@ from utils.torch import to_device
 
 
 class PositionalEncoder(nn.Module):
-    def __init__(self, d_model: int, max_seq_len: int = 50):
+    def __init__(self, d_model: int, max_seq_len: int = 200):
         super().__init__()
         self.d_model = d_model
         pe = torch.zeros(max_seq_len, d_model)
