@@ -13,8 +13,7 @@ if __name__ == "__main__":
 
         with open(dir.joinpath("params.json"), "r") as f:
             data = json.load(f)
-
-        results[data["test_max_accuracy"]["value"]] = dir.stem
+        results[data["test_max_accuracy"]["value"]] = str(dir)
 
     s = [str(k) + "@" + v for k, v in results.items()]
     print("\n".join(s))
