@@ -57,7 +57,10 @@ if __name__ == "__main__":
 
     data_embedding = DataEmbedding(corpora=[SOURCE["train"], SOURCE["test"], SOURCE["comp"]])
 
-    model = torch.load(opts.checkpoint)
+    if torch.cuda.is_available():
+        model = torch.load(opts.checkpoint)
+    else:
+        model = torch.load(opts.checkpoint, map_location=torch.device('cpu'))
     model = to_device(model)
     model.eval()
 
