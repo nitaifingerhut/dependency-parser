@@ -1,6 +1,5 @@
 import numpy as np
 import torch
-import torch.nn as nn
 
 from assets.chu_liu_edmonds import decode_mst
 from data.constants import INDICES, SOURCE
@@ -8,9 +7,7 @@ from data.dataset import DependencyParsingDataset
 from data.embedding import DataEmbedding
 from data.sentence import Sentence
 from pathlib import Path
-from torch.utils.data import DataLoader
 from tqdm import tqdm
-from typing import Tuple
 from utils.parser import Parser
 from utils.torch import to_numpy
 from utils.torch import to_device
@@ -39,9 +36,6 @@ if __name__ == "__main__":
     print(f"Opts: {opts}")
 
     conf = CONFIGS[opts.config]
-
-    exp_dir = conf["output"]
-    exp_dir.mkdir(parents=True, exist_ok=True)
 
     data_embedding = DataEmbedding(corpora=[SOURCE["train"], SOURCE["test"], SOURCE["comp"]])
 
@@ -79,6 +73,5 @@ if __name__ == "__main__":
         updated_raw_sentences.append("\n".join(updated_raw_sentence))
     updated_raw_sentences += [""]
 
-    pred_path = exp_dir.joinpath("comp.labeled")
-    with open(pred_path, "w") as f:
+    with open(conf["output"], "w") as f:
         f.writelines("\n\n".join(updated_raw_sentences))
