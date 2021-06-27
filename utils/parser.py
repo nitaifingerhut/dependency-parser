@@ -96,3 +96,19 @@ class Parser(object):
         opt = parser.parse_args()
         set_seed(opt.seed)
         return opt
+
+    @staticmethod
+    def generate():
+        """
+        Parse command-line arguments
+        :return: argparser object with user opts.
+        """
+        parser = argparse.ArgumentParser()
+
+        parser.add_argument("--seed", type=int, default=None)
+        parser.add_argument(
+            "--config", type=str, default="base", choices=("base", "advanced"),
+        )
+        opt = parser.parse_args()
+        set_seed(opt.seed)
+        return opt
