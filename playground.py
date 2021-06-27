@@ -15,5 +15,6 @@ if __name__ == "__main__":
             data = json.load(f)
         results[data["test_max_accuracy"]["value"]] = str(dir)
 
+    results = dict(sorted(results.items(), key=lambda x: x[0], reverse=True))
     s = [str(k) + "@" + v for k, v in results.items()]
     print("\n".join(s))
