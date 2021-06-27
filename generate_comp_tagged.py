@@ -40,15 +40,15 @@ if __name__ == "__main__":
 
     conf = CONFIGS[opts.config]
 
-    exp_dir = conf.output
+    exp_dir = conf["output"]
     exp_dir.mkdir(parents=True, exist_ok=True)
 
     data_embedding = DataEmbedding(corpora=[SOURCE["train"], SOURCE["test"], SOURCE["comp"]])
 
     if torch.cuda.is_available():
-        model = torch.load(conf.checkpoint)
+        model = torch.load(conf["checkpoint"])
     else:
-        model = torch.load(conf.checkpoint, map_location=torch.device('cpu'))
+        model = torch.load(conf["checkpoint"], map_location=torch.device('cpu'))
     model = to_device(model)
     model.eval()
 
